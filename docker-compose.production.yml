@@ -1,0 +1,83 @@
+# OrbitFlow Production Self-Hosted Deployment
+# Backend-first deployment. Add your frontend as a separate app, service, or CDN target.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orbitflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orbitflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-orbitflow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-orbitflow}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orbitflow
+
+  redis:
+    image: redis:7-alpine
+    container_name: orbitflow-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orbitflow
+
+  api:
+    image: ghcr.io/alwayspalaye/orbitflow-api:${VERSION:-latest}
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api/Dockerfile
+    container_name: orbitflow-api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orbitflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-orbitflow}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env (min 32 chars)}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN to your trusted client origin}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - orbitflow
+
+  nginx:
+    image: nginx:alpine
+    container_name: orbitflow-nginx
+    restart: always
+    ports:
+      - '${HTTP_PORT:-80}:80'
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    networks:
+      - orbitflow
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  orbitflow:
+    driver: bridge

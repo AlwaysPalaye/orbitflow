@@ -1,0 +1,200 @@
+// OrbitFlow Prisma Schema
+// Multi-tenant SaaS database schema with workspace isolation.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------
+// AUTH AND USERS
+// -------------------------------------
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String?   @map("first_name")
+  lastName      String?   @map("last_name")
+  avatarUrl     String?   @map("avatar_url")
+  isActive      Boolean   @default(true) @map("is_active")
+  emailVerified Boolean   @default(false) @map("email_verified")
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  memberships WorkspaceMember[]
+  auditLogs   AuditLog[]
+  posts       Post[]
+  votes       Vote[]
+  comments    Comment[]
+
+  @@map("users")
+}
+
+// -------------------------------------
+// WORKSPACES AND TENANCY
+// -------------------------------------
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  logoUrl     String?  @map("logo_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members   WorkspaceMember[]
+  auditLogs AuditLog[]
+  boards    Board[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  workspaceId String   @map("workspace_id")
+  role        Role     @default(MEMBER)
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+  @@map("workspace_members")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// -------------------------------------
+// AUDIT LOGS
+// -------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  workspaceId    String?  @map("workspace_id")
+  action         String
+  targetResource String?  @map("target_resource")
+  targetId       String?  @map("target_id")
+  metadata       Json?
+  ipAddress      String?  @map("ip_address")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// -------------------------------------
+// FEEDBACK BOARD REFERENCE DOMAIN
+// -------------------------------------
+
+model Board {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  slug        String
+  description String?
+  isPublic    Boolean  @default(true) @map("is_public")
+  color       String   @default("#6366f1")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  posts     Post[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@map("boards")
+}
+
+model Post {
+  id          String     @id @default(uuid())
+  boardId     String     @map("board_id")
+  authorId    String     @map("author_id")
+  title       String
+  description String
+  status      PostStatus @default(OPEN)
+  category    String?
+  voteCount   Int        @default(0) @map("vote_count")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  board    Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes    Vote[]
+  comments Comment[]
+
+  @@index([boardId])
+  @@index([authorId])
+  @@index([status])
+  @@index([voteCount])
+  @@map("posts")
+}
+
+enum PostStatus {
+  OPEN
+  UNDER_REVIEW
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("votes")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  postId     String   @map("post_id")
+  authorId   String   @map("author_id")
+  content    String
+  isOfficial Boolean  @default(false) @map("is_official")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([authorId])
+  @@map("comments")
+}

@@ -1,0 +1,54 @@
+{
+  "name": "willtech-orbitflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Will Tech OrbitFlow - Open-source SaaS foundation monorepo",
+  "author": "Will Tech Engineering",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml,css,scss}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml,css,scss}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:ci": "turbo run test:ci",
+    "clean": "turbo run clean && rimraf node_modules .turbo",
+    "clean:turbo": "rimraf .turbo **/node_modules/.cache/turbo",
+    "docker:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
+    "docker:build": "docker compose -f infrastructure/docker/docker-compose.yml build",
+    "docker:logs": "docker compose -f infrastructure/docker/docker-compose.yml logs -f",
+    "docker:restart": "pnpm docker:down && pnpm docker:up",
+    "db:migrate": "turbo run db:migrate --filter=@willtech/api",
+    "db:generate": "turbo run db:generate --filter=@willtech/api",
+    "db:seed": "turbo run db:seed --filter=@willtech/api",
+    "db:studio": "turbo run db:studio --filter=@willtech/api"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.0",
+    "rimraf": "^6.0.0",
+    "turbo": "^2.9.14"
+  },
+  "pnpm": {
+    "overrides": {
+      "@angular-devkit/core>picomatch": "4.0.4",
+      "@angular-devkit/core>ajv": "8.20.0",
+      "@nestjs/cli>glob": "10.5.0",
+      "ajv-formats>ajv": "8.20.0",
+      "file-type": "21.3.2",
+      "js-yaml": "4.1.1",
+      "lodash": "4.18.1",
+      "multer": "2.1.1",
+      "tmp": "0.2.5",
+      "webpack": "5.107.0"
+    }
+  }
+}
